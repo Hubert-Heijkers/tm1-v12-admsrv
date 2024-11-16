@@ -1,0 +1,142 @@
+{
+	"$Version": "4.0",
+	"$EntityContainer": "ibm.tm1.api.v1.API",
+	"$Reference": {
+		"https://oasis-tcs.github.io/odata-vocabularies/vocabularies/Org.OData.Capabilities.V1.json": {
+			"$Include": [
+				{
+					"$Alias": "Capabilities",
+					"$Namespace": "Org.OData.Capabilities.V1"
+				}
+			]
+		},
+		"https://oasis-tcs.github.io/odata-vocabularies/vocabularies/Org.OData.Core.V1.json": {
+			"$Include": [
+				{
+					"$Alias": "Core",
+					"$Namespace": "Org.OData.Core.V1"
+				}
+			]
+		}
+	},
+	"ibm.tm1.api.v1": {
+		"$Alias": "tm1",
+		"@Core.SchemaVersion": "12.0.0",
+		"Server": {
+			"$Kind": "EntityType",
+			"$Key": [
+				"Name"
+			],
+			"@Core.Description": "A read-only collection of properties of the running server. Available without authenticating.",
+			"Name": {
+				"@Core.Description": "The name of the server."
+			},
+			"SelfRegistered": {
+				"$Type": "Edm.Boolean",
+				"@Core.Description": "Indicates whether the server was self registered or manually added (always false).",
+				"@Core.Permissions": "Read"
+			},
+			"Host": {
+				"$Nullable": true,
+				"@Core.Description": "The host name off the server on which the TM1 server runs.",
+				"@Core.Permissions": "Read"
+			},
+			"IPAddress": {
+				"$Nullable": true,
+				"@Core.Description": "The IP address on which the server can be reached.",
+				"@Core.Permissions": "Read"
+			},
+			"IPv6Address": {
+				"$Nullable": true,
+				"@Core.Description": "The IPv6 address on which the server can be reached.",
+				"@Core.Permissions": "Read"
+			},
+			"PortNumber": {
+				"$Type": "Edm.Int32",
+				"$Nullable": true,
+				"@Core.Description": "The port number of the TM1 server, which is used to distinguish between multiple servers running on the same computer (always null).",
+				"@Core.Permissions": "Read"
+			},
+			"ClientMessagePortNumber": {
+				"$Type": "Edm.Int32",
+				"$Nullable": true,
+				"@Core.Description": "A secondary port used to accept client messages concerning the progress and ultimate cancellation of a lengthy operation without tying up thread reserves (always null).",
+				"@Core.Permissions": "Read"
+			},
+			"HTTPPortNumber": {
+				"$Type": "Edm.Int32",
+				"$Nullable": true,
+				"@Core.Description": "The port number on which the TM1 server listens for incoming HTTP(S) requests.",
+				"@Core.Permissions": "Read"
+			},
+			"IsLocal": {
+				"$Type": "Edm.Boolean",
+				"@Core.Description": "Indicates whether or not the server is a LOCAL server (always false).",
+				"@Core.Permissions": "Read"
+			},
+			"UsingSSL": {
+				"$Type": "Edm.Boolean",
+				"@Core.Description": "Indicates whether or not the server is configured to use SSL for client connections.",
+				"@Core.Permissions": "Read"
+			},
+			"SSLCertificateID": {
+				"$Nullable": true,
+				"@Core.Description": "Specifies the name of the principal to whom the server's certificate is issued (always null).",
+				"@Core.Permissions": "Read"
+			},
+			"SSLCertificateAuthority": {
+				"$Nullable": true,
+				"@Core.Description": "Specifies the name of the certificate authority that issues the certificate (always null).",
+				"@Core.Permissions": "Read"
+			},
+			"SSLCertificateRevocationList": {
+				"$Nullable": true,
+				"@Core.Description": "Specifies the list of certificates that have been revoked by the issue certificate authority (always null).",
+				"@Core.Permissions": "Read"
+			},
+			"ClientExportSSLSvrCert": {
+				"$Type": "Edm.Boolean",
+				"@Core.Description": "Specifies whether the client should retrieve the certificate authority certificate, which was originally used to issue the TM1 server's certificate, from the Microsoft Windows certificate store (always false).",
+				"@Core.Permissions": "Read"
+			},
+			"ClientExportSSLSvrKeyID": {
+				"$Nullable": true,
+				"@Core.Description": "Specifies the identity key used by the client to export the certificate authority certificate, which was originally used to issue the TM1 server's certificate, from the Microsoft Windows certificate store (always null).",
+				"@Core.Permissions": "Read"
+			},
+			"AcceptingClients": {
+				"$Type": "Edm.Boolean",
+				"@Core.Description": "Indicates whether or not the server is currently accepting clients or not.",
+				"@Core.Permissions": "Read"
+			},
+			"LastUpdated": {
+				"$Type": "Edm.DateTimeOffset",
+				"@Core.Description": "The date and time of the last time this server entry got updated.",
+				"@Core.Permissions": "Read"
+			}
+		},
+		"API": {
+			"$Kind": "EntityContainer",
+			"@Capabilities.AsynchronousRequestsSupported": false,
+			"@Capabilities.ConformanceLevel": "Minimal",
+			"@Capabilities.SupportedFormats": [
+				"application/json"
+			],
+			"@Capabilities.SupportedMetadataFormats": [
+				"application/json",
+				"application/xml"
+			],
+			"@Core.ConventionalIDs": true,
+			"@Core.DereferenceableIDs": true,
+			"@Core.Description": "Top-level container for the EDM that defines the resources that comprise the API, including entity sets, singletons, actions, and functions. If an item is defined in the EDM but is not defined within the API entity container, it is bound to another resource defined within the model.",
+			"@Core.ODataVersions": "4.0",
+			"Servers": {
+				"$Type": "tm1.Server",
+				"$Collection": true,
+				"@Capabilities.SelectSupport": {
+					"Countable": true
+				}
+			}
+		}
+	}
+}

@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+	<edmx:Reference Uri="https://oasis-tcs.github.io/odata-vocabularies/vocabularies/Org.OData.Capabilities.V1.xml">
+		<edmx:Include Namespace="Org.OData.Capabilities.V1" Alias="Capabilities"/>
+	</edmx:Reference>
+	<edmx:Reference Uri="https://oasis-tcs.github.io/odata-vocabularies/vocabularies/Org.OData.Core.V1.xml">
+		<edmx:Include Namespace="Org.OData.Core.V1" Alias="Core"/>
+	</edmx:Reference>
+	<edmx:DataServices>
+		<Schema Namespace="ibm.tm1.api.v1" Alias="tm1" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+			<Annotation Term="Core.SchemaVersion">
+				<String>12.0.0</String>
+			</Annotation>
+			<EntityType Name="Server">
+				<Key>
+					<PropertyRef Name="Name"/>
+				</Key>
+				<Annotation Term="Core.Description">
+					<String>A read-only collection of properties of the running server. Available without authenticating.</String>
+				</Annotation>
+				<Property Name="Name" Type="Edm.String" Nullable="false">
+					<Annotation Term="Core.Description">
+						<String>The name of the server.</String>
+					</Annotation>
+				</Property>
+				<Property Name="SelfRegistered" Type="Edm.Boolean" Nullable="false">
+					<Annotation Term="Core.Description">
+						<String>Indicates whether the server was self registered or manually added (always false).</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="Host" Type="Edm.String">
+					<Annotation Term="Core.Description">
+						<String>The host name off the server on which the TM1 server runs.</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="IPAddress" Type="Edm.String">
+					<Annotation Term="Core.Description">
+						<String>The IP address on which the server can be reached.</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="IPv6Address" Type="Edm.String">
+					<Annotation Term="Core.Description">
+						<String>The IPv6 address on which the server can be reached.</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="PortNumber" Type="Edm.Int32">
+					<Annotation Term="Core.Description">
+						<String>The port number of the TM1 server, which is used to distinguish between multiple servers running on the same computer (always null).</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="ClientMessagePortNumber" Type="Edm.Int32">
+					<Annotation Term="Core.Description">
+						<String>A secondary port used to accept client messages concerning the progress and ultimate cancellation of a lengthy operation without tying up thread reserves (always null).</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="HTTPPortNumber" Type="Edm.Int32">
+					<Annotation Term="Core.Description">
+						<String>The port number on which the TM1 server listens for incoming HTTP(S) requests.</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="IsLocal" Type="Edm.Boolean" Nullable="false">
+					<Annotation Term="Core.Description">
+						<String>Indicates whether or not the server is a LOCAL server (always false).</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="UsingSSL" Type="Edm.Boolean" Nullable="false">
+					<Annotation Term="Core.Description">
+						<String>Indicates whether or not the server is configured to use SSL for client connections.</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="SSLCertificateID" Type="Edm.String">
+					<Annotation Term="Core.Description">
+						<String>Specifies the name of the principal to whom the server&#39;s certificate is issued (always null).</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="SSLCertificateAuthority" Type="Edm.String">
+					<Annotation Term="Core.Description">
+						<String>Specifies the name of the certificate authority that issues the certificate (always null).</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="SSLCertificateRevocationList" Type="Edm.String">
+					<Annotation Term="Core.Description">
+						<String>Specifies the list of certificates that have been revoked by the issue certificate authority (always null).</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="ClientExportSSLSvrCert" Type="Edm.Boolean" Nullable="false">
+					<Annotation Term="Core.Description">
+						<String>Specifies whether the client should retrieve the certificate authority certificate, which was originally used to issue the TM1 server&#39;s certificate, from the Microsoft Windows certificate store (always false).</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="ClientExportSSLSvrKeyID" Type="Edm.String">
+					<Annotation Term="Core.Description">
+						<String>Specifies the identity key used by the client to export the certificate authority certificate, which was originally used to issue the TM1 server&#39;s certificate, from the Microsoft Windows certificate store (always null).</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="AcceptingClients" Type="Edm.Boolean" Nullable="false">
+					<Annotation Term="Core.Description">
+						<String>Indicates whether or not the server is currently accepting clients or not.</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+				<Property Name="LastUpdated" Type="Edm.DateTimeOffset" Nullable="false">
+					<Annotation Term="Core.Description">
+						<String>The date and time of the last time this server entry got updated.</String>
+					</Annotation>
+					<Annotation Term="Core.Permissions">
+						<EnumMember>Core.Permission/Read</EnumMember>
+					</Annotation>
+				</Property>
+			</EntityType>
+			<EntityContainer Name="API">
+				<Annotation Term="Capabilities.AsynchronousRequestsSupported">
+					<Bool>false</Bool>
+				</Annotation>
+				<Annotation Term="Capabilities.ConformanceLevel">
+					<EnumMember>Capabilities.ConformanceLevelType/Minimal</EnumMember>
+				</Annotation>
+				<Annotation Term="Capabilities.SupportedFormats">
+					<Collection>
+						<String>application/json</String>
+					</Collection>
+				</Annotation>
+				<Annotation Term="Capabilities.SupportedMetadataFormats">
+					<Collection>
+						<String>application/json</String>
+						<String>application/xml</String>
+					</Collection>
+				</Annotation>
+				<Annotation Term="Core.ConventionalIDs">
+					<Bool>true</Bool>
+				</Annotation>
+				<Annotation Term="Core.DereferenceableIDs">
+					<Bool>true</Bool>
+				</Annotation>
+				<Annotation Term="Core.Description">
+					<String>Top-level container for the EDM that defines the resources that comprise the API, including entity sets, singletons, actions, and functions. If an item is defined in the EDM but is not defined within the API entity container, it is bound to another resource defined within the model.</String>
+				</Annotation>
+				<Annotation Term="Core.ODataVersions">
+					<String>4.0</String>
+				</Annotation>
+				<EntitySet Name="Servers" EntityType="tm1.Server">
+					<Annotation Term="Capabilities.SelectSupport">
+						<Record>
+							<PropertyValue Property="Countable">
+								<Bool>true</Bool>
+							</PropertyValue>
+						</Record>
+					</Annotation>
+				</EntitySet>
+			</EntityContainer>
+		</Schema>
+	</edmx:DataServices>
+</edmx:Edmx>

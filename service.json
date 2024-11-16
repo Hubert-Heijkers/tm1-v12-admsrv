@@ -1,0 +1,10 @@
+{
+	"@odata.context": "$metadata",
+	"value": [
+		{
+			"name": "Servers",
+			"kind": "EntitySet",
+			"url": "Servers"
+		}
+	]
+}
