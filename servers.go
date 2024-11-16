@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,6 +29,60 @@ var (
 	mu sync.Mutex
 	wg sync.WaitGroup
 )
+
+// File in which we persist our server to port map
+const portMapFilePath = "servers.json"
+
+func savePortMapToFile() {
+	mu.Lock()
+	defer mu.Unlock()
+
+	// Convert map to JSON
+	jsonPortMap, err := json.MarshalIndent(dictPortByServer, "", "  ")
+	if err != nil {
+		logger.Error("Error marshalling port map to JSON", zap.Error(err))
+		return
+	}
+
+	// Write JSON to file
+	err = os.WriteFile(portMapFilePath, jsonPortMap, 0644)
+	if err != nil {
+		logger.Error("Error writing port map to file", zap.Error(err))
+	}
+}
+
+func loadPortMapFromFile() {
+	mu.Lock()
+	defer mu.Unlock()
+
+	// Check if file exists
+	if _, err := os.Stat(portMapFilePath); os.IsNotExist(err) {
+		return
+	}
+
+	// Read file content
+	jsonPortMap, err := os.ReadFile(portMapFilePath)
+	if err != nil {
+		logger.Error("Error reading port map from file", zap.Error(err))
+		return
+	}
+
+	// Parse JSON back to map
+	var portMap map[string]int
+	err = json.Unmarshal(jsonPortMap, &portMap)
+	if err != nil {
+		logger.Error("Error unmarshalling port map JSON", zap.Error(err))
+		return
+	}
+
+	// Restore map
+	dictPortByServer = make(map[string]int)
+	dictServerByPort = make(map[int]string)
+	for server, port := range portMap {
+		dictPortByServer[server] = port
+		dictServerByPort[port] = server
+	}
+}
 
 func assignPort(name string) int {
 	portMin := viper.GetInt("servers.port-range.min")
