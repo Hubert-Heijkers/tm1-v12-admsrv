@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -84,6 +85,18 @@ func loadPortMapFromFile() {
 	}
 }
 
+func isPortAvailable(port int) bool {
+	// Check if the specified port is available by trying to listen on it
+	listener, err := net.Listen("tcp", ":"+strconv.Itoa(port))
+	if err != nil {
+		// Port is unavailable
+		return false
+	}
+	// It's available, close the listener to release the port
+	listener.Close()
+	return true
+}
+
 func assignPort(name string) int {
 	portMin := viper.GetInt("servers.port-range.min")
 	portMax := viper.GetInt("servers.port-range.max")
@@ -94,8 +107,16 @@ func assignPort(name string) int {
 	if port, exists := dictPortByServer[name]; exists {
 		if port >= portMin && port <= portMax {
 			if _, exists := activeServersByPort[port]; !exists {
-				// Reuse this port
-				return port
+				if isPortAvailable(port) {
+					// Reuse this port
+					return port
+				} else {
+					// Port is not available
+					if server, exists := dictServerByPort[port]; exists && server == name {
+						delete(dictServerByPort, port)
+					}
+					delete(dictPortByServer, name)
+				}
 			}
 		} else {
 			// Assigned port is outside the bounds of the [current] port range
@@ -122,22 +143,25 @@ func assignPort(name string) int {
 	}
 
 	// Room left in the port range?
-	if portLast < portMax {
-		portLast++
-		dictPortByServer[name] = portLast
-		dictServerByPort[portLast] = name
-		return portLast
+	for portLast++; portLast <= portMax; portLast++ {
+		if isPortAvailable(portLast) {
+			dictPortByServer[name] = portLast
+			dictServerByPort[portLast] = name
+			return portLast
+		}
 	}
 
-	// Must reuse the first port in the range that's not used
+	// Must reuse the first port in the range that's not used and available
 	for port := portMin; port <= portMax; port++ {
 		if _, exists := activeServersByPort[port]; !exists {
-			if server, exists := dictServerByPort[port]; exists {
-				delete(dictPortByServer, server)
+			if isPortAvailable(port) {
+				if server, exists := dictServerByPort[port]; exists {
+					delete(dictPortByServer, server)
+				}
+				dictPortByServer[name] = port
+				dictServerByPort[port] = name
+				return port
 			}
-			dictPortByServer[name] = port
-			dictServerByPort[port] = name
-			return port
 		}
 	}
 
