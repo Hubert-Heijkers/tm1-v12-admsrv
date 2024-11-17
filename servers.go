@@ -324,7 +324,7 @@ func refreshServers() error {
 	for _, server := range activeServersByName {
 		exists := func() bool {
 			for _, database := range databases {
-				if server.Name == database.Name {
+				if server.Name == database.Name && database.Replicas > 0 {
 					return true
 				}
 			}
@@ -341,7 +341,9 @@ func refreshServers() error {
 
 	// Now lets make sure that every database is represented by a server
 	for _, database := range databases {
-		upsertServer(&database)
+		if database.Replicas > 0 {
+			upsertServer(&database)
+		}
 	}
 
 	return nil
