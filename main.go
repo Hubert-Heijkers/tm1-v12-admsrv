@@ -17,9 +17,11 @@ var logger *zap.Logger
 var loggerLevel zap.AtomicLevel
 
 func runServer() {
-	// Load port map and kick off the reverse proxies for our servers
+	// Initialize servers port map and file watcher
+	initPortMap()
+
+	// Kick off the reverse proxies for our servers
 	go func() {
-		loadPortMapFromFile()
 		err := refreshServers()
 		if err != nil {
 			logger.Error("Unable to refresh servers list", zap.Error(err))
@@ -85,9 +87,6 @@ loop:
 	// Gracefully shutdown all reverse proxies for our active servers
 	shutdownAllServers()
 
-	// Dump our port map to file assuring the same ports will be use next time around
-	savePortMapToFile()
-
 	return
 }
 
@@ -120,9 +119,6 @@ func setupSignalHandling() {
 
 		// Gracefully shutdown all reverse proxies for our active servers
 		shutdownAllServers()
-
-		// Dump our port map to file assuring the same ports will be use next time around
-		savePortMapToFile()
 
 		// Exit
 		os.Exit(0)

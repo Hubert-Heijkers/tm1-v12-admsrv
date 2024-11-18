@@ -16,6 +16,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
@@ -27,8 +28,11 @@ var (
 	dictServerByPort        = map[int]string{}
 	portLast            int = 0
 
-	mu sync.Mutex
-	wg sync.WaitGroup
+	mu                  sync.Mutex
+	wg                  sync.WaitGroup
+	serversWatcher      *fsnotify.Watcher
+	ignoreServersUpdate bool = false
+	updatePortMapFile   bool = false
 )
 
 // File in which we persist our server to port map
@@ -38,34 +42,38 @@ func savePortMapToFile() {
 	mu.Lock()
 	defer mu.Unlock()
 
-	// Convert map to JSON
-	jsonPortMap, err := json.MarshalIndent(dictPortByServer, "", "  ")
-	if err != nil {
-		logger.Error("Error marshalling port map to JSON", zap.Error(err))
-		return
-	}
+	// Only update if required
+	if updatePortMapFile {
+		// Convert map to JSON
+		jsonPortMap, err := json.MarshalIndent(dictPortByServer, "", "  ")
+		if err != nil {
+			logger.Error("Error marshalling port map to JSON", zap.Error(err))
+			return
+		}
 
-	// Write JSON to file
-	err = os.WriteFile(portMapFilePath, jsonPortMap, 0644)
-	if err != nil {
-		logger.Error("Error writing port map to file", zap.Error(err))
+		// Mark as an internal update
+		ignoreServersUpdate = true
+
+		// Write JSON to file
+		err = os.WriteFile(portMapFilePath, jsonPortMap, 0644)
+		if err != nil {
+			logger.Error("Error writing port map to file", zap.Error(err))
+		}
+
+		// Mark the port map file as updated
+		updatePortMapFile = false
 	}
 }
 
-func loadPortMapFromFile() {
+func updatePortMapFromFile() bool {
 	mu.Lock()
 	defer mu.Unlock()
-
-	// Check if file exists
-	if _, err := os.Stat(portMapFilePath); os.IsNotExist(err) {
-		return
-	}
 
 	// Read file content
 	jsonPortMap, err := os.ReadFile(portMapFilePath)
 	if err != nil {
 		logger.Error("Error reading port map from file", zap.Error(err))
-		return
+		return false
 	}
 
 	// Parse JSON back to map
@@ -73,7 +81,7 @@ func loadPortMapFromFile() {
 	err = json.Unmarshal(jsonPortMap, &portMap)
 	if err != nil {
 		logger.Error("Error unmarshalling port map JSON", zap.Error(err))
-		return
+		return false
 	}
 
 	// Restore map
@@ -83,6 +91,67 @@ func loadPortMapFromFile() {
 		dictPortByServer[server] = port
 		dictServerByPort[port] = server
 	}
+	return true
+}
+
+func watchPortMapFile() {
+	for {
+		select {
+		case event, ok := <-serversWatcher.Events:
+			if !ok {
+				return
+			}
+
+			// Reload the file if it's modified and not an internal write
+			if event.Op&(fsnotify.Write|fsnotify.Create) != 0 {
+				if ignoreServersUpdate {
+					// Skip internal writes
+					ignoreServersUpdate = false
+					continue
+				}
+
+				// Reload the port map from file
+				if updatePortMapFromFile() {
+					logger.Info("Servers port map reloaded")
+				}
+			}
+		case err, ok := <-serversWatcher.Errors:
+			if !ok {
+				return
+			}
+			logger.Error("Servers file watcher error", zap.Error(err))
+		}
+	}
+}
+
+func initPortMap() {
+	// Check if file exists
+	_, err := os.Stat(portMapFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// It does not, initialize with empty map so we can watch it
+			err = os.WriteFile(portMapFilePath, []byte(`{}`), 0644)
+			if err != nil {
+				logger.Error("Error writing port map to file", zap.Error(err))
+			}
+		}
+	}
+
+	// Initialize the port map from file
+	updatePortMapFromFile()
+
+	// Set up a watcher for the servers file
+	serversWatcher, err = fsnotify.NewWatcher()
+	if err != nil {
+		logger.Error("Failed to initialzing servers file watcher", zap.Error(err))
+		return
+	}
+	if err = serversWatcher.Add(portMapFilePath); err != nil {
+		logger.Error("Failed to start watching the servers file", zap.Error((err)))
+	}
+
+	// Start watching the servers file
+	go watchPortMapFile()
 }
 
 func isPortAvailable(port int) bool {
@@ -97,33 +166,26 @@ func isPortAvailable(port int) bool {
 	return true
 }
 
-func assignPort(name string) int {
+func assignPort(server string) int {
 	portMin := viper.GetInt("servers.port-range.min")
 	portMax := viper.GetInt("servers.port-range.max")
 
 	// Check if this server has had a port assigned to it that is:
 	// - not currently being used
 	// - and still in bounds of the port range
-	if port, exists := dictPortByServer[name]; exists {
-		if port >= portMin && port <= portMax {
-			if _, exists := activeServersByPort[port]; !exists {
-				if isPortAvailable(port) {
-					// Reuse this port
-					return port
-				} else {
-					// Port is not available
-					if server, exists := dictServerByPort[port]; exists && server == name {
-						delete(dictServerByPort, port)
-					}
-					delete(dictPortByServer, name)
+	if port, exists := dictPortByServer[server]; exists {
+		if _, exists := activeServersByPort[port]; !exists {
+			if isPortAvailable(port) {
+				// Reuse this port
+				return port
+			} else {
+				// Port is not available
+				if name, exists := dictServerByPort[port]; exists && name == server {
+					delete(dictServerByPort, port)
 				}
+				delete(dictPortByServer, server)
+				updatePortMapFile = true
 			}
-		} else {
-			// Assigned port is outside the bounds of the [current] port range
-			if server, exists := dictServerByPort[port]; exists && server == name {
-				delete(dictServerByPort, port)
-			}
-			delete(dictPortByServer, name)
 		}
 	}
 
@@ -145,8 +207,9 @@ func assignPort(name string) int {
 	// Room left in the port range?
 	for portLast++; portLast <= portMax; portLast++ {
 		if isPortAvailable(portLast) {
-			dictPortByServer[name] = portLast
-			dictServerByPort[portLast] = name
+			dictPortByServer[server] = portLast
+			dictServerByPort[portLast] = server
+			updatePortMapFile = true
 			return portLast
 		}
 	}
@@ -155,11 +218,12 @@ func assignPort(name string) int {
 	for port := portMin; port <= portMax; port++ {
 		if _, exists := activeServersByPort[port]; !exists {
 			if isPortAvailable(port) {
-				if server, exists := dictServerByPort[port]; exists {
-					delete(dictPortByServer, server)
+				if name, exists := dictServerByPort[port]; exists {
+					delete(dictPortByServer, name)
 				}
-				dictPortByServer[name] = port
-				dictServerByPort[port] = name
+				dictPortByServer[server] = port
+				dictServerByPort[port] = server
+				updatePortMapFile = true
 				return port
 			}
 		}
@@ -370,6 +434,10 @@ func refreshServers() error {
 		}
 	}
 
+	// Make sure any changes made to the port map get persisted in the servers file
+	go func() {
+		savePortMapToFile()
+	}()
 	return nil
 }
 
