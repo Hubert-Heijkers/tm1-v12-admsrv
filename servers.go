@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -233,6 +234,98 @@ func assignPort(server string) int {
 	return 0
 }
 
+// responseRecorder wraps the http.ResponseWriter to capture response status and size
+type responseRecorder struct {
+	http.ResponseWriter
+	statusCode   int
+	responseSize int64
+}
+
+// WriteHeader captures the HTTP status code
+func (rr *responseRecorder) WriteHeader(statusCode int) {
+	rr.statusCode = statusCode
+	rr.ResponseWriter.WriteHeader(statusCode)
+}
+
+// Write captures the size of the data written
+func (rr *responseRecorder) Write(b []byte) (int, error) {
+	size, err := rr.ResponseWriter.Write(b)
+	rr.responseSize += int64(size)
+	return size, err
+}
+
+func logRequestResponse(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Log request details
+		startTime := time.Now()
+
+		// Wrap the response writer to capture the status code and response body size
+		wrappedWriter := &responseRecorder{ResponseWriter: w, statusCode: http.StatusOK}
+
+		// Call the next handler, which could be another middleware or the final handler
+		next.ServeHTTP(wrappedWriter, r)
+
+		// Log response details
+		if logger.Level() == zap.DebugLevel {
+			logger.Debug("Request Details",
+				zap.String("Method", r.Method),
+				zap.String("URL", r.URL.Path),
+				zap.Any("Query", r.URL.Query()),
+				zap.Int("Status", wrappedWriter.statusCode),
+				zap.Int("Content-Length", int(wrappedWriter.responseSize)),
+				zap.Duration("Duration", time.Since(startTime)))
+		}
+	})
+}
+
+func startPAReverseProxy() {
+	// Parse the specified PA URL we are proxying here - TODO: IF WE KEEP THIS MAKE THIS DYNAMIC!
+	target := "http://wsl-rhel"
+	targetURL, err := url.Parse(target)
+	if err != nil {
+		logger.Error("Unable to start PA proxy, invalid URL", zap.Error(err), zap.String("url", target))
+		return
+	}
+
+	// Create a new reverse proxy targeting the targetURL
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	// Define a custom error handler to log requests targeting the API that weren't handled
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		logger.Error("Error processing PA endpoint", zap.String("path", r.URL.Path), zap.Error(err))
+		http.Error(w, "Bad Gateway", http.StatusBadGateway)
+	}
+
+	// Now that we have initiated a reverse proxy handler for this database, start listening to the port associated to it
+	// TODO: IF WE KEEP THIS MAKE THE PORT DYNAMIC AS WELL
+	proxyPortNumber := 5555
+	httpServer := &http.Server{
+		Addr:      ":" + strconv.Itoa(proxyPortNumber),
+		Handler:   logRequestResponse(proxy),
+		TLSConfig: &tls.Config{},
+	}
+
+	logger.Info("Starting PA proxy", zap.Int("port", proxyPortNumber), zap.String("redirect-url", target))
+
+	// Increment the WaitGroup before starting the server goroutine
+	go func() {
+		/*
+			// Using SSL?
+			if server.UsingSSL {
+				if err := server.httpServer.ListenAndServeTLS(viper.GetString("servers.cert-file"), viper.GetString("servers.key-file")); err != http.ErrServerClosed {
+					logger.Error("Proxy, using SSL, failed to start", zap.Error(err), zap.String("server", server.Name), zap.Int("port", server.HTTPPortNumber), zap.String("servers.cert-file", viper.GetString("servers.cert-file")), zap.String("servers.key-file", viper.GetString("servers.key-file")))
+				}
+			} else {
+		*/
+		if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
+			logger.Error("PA proxy failed to start", zap.Error(err), zap.Int("port", proxyPortNumber))
+		}
+		/*
+			}
+		*/
+	}()
+}
+
 func startReverseProxy(server *Server) {
 	// Map with the variables used to execute the template
 	data := map[string]interface{}{
@@ -259,35 +352,73 @@ func startReverseProxy(server *Server) {
 		return
 	}
 
-	// Start a new reverse proxy for targeting the targetURL
+	// Create a new reverse proxy targeting the targetURL
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
 	// Modify the request before it is forwarded
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
-		// Validate that the URL starts with /api/v1
-		if !strings.HasPrefix(req.URL.Path, "/api/v1/") {
+		// Rewrite the paths wer are willing to handle before calling the original director
+		if strings.HasPrefix(req.URL.Path, "/api/v1/") {
+			// The proxy targets the service root of the database, make the path relative to that
+			req.URL.Path = req.URL.Path[7:]
+		} else if req.URL.Path == "/api/logout" {
+			// Convert to POST request targetting /ActiveSession/tm1.Close instead
+			req.Method = "POST"
+			req.URL.Path = "/ActiveSession/tm1.Close"
+			req.Header.Set("Content-Type", "application/json")
+			newBody := `{}`
+			req.Body = io.NopCloser(bytes.NewBufferString(newBody))
+			req.ContentLength = int64(len(newBody))
+		} else {
 			return
 		}
 
-		// Rewrite the URL to include the databases path segments
-		req.URL.Path = req.URL.Path[7:]
-
-		// call the original director to preserve all other request modifications
+		// Call the original director to have the request URL rewritten
 		originalDirector(req)
+
+		/*
+			// Ensure cookies are forwarded to the backend.
+			logger.Debug("Request", zap.String("Url", req.URL.Path), zap.Strings("Cookie", req.Header["Cookie"]))
+		*/
+
 	}
 
-	// Define a custom error handler to handle validation failures
+	// Define a custom error handler to log requests targeting the API that weren't handled
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		if !strings.HasPrefix(r.URL.Path, "/api/v1/") {
-			http.Error(w, "Bad Request: Invalid Service Root URL", http.StatusBadRequest)
+
+		// For optimal performance of the proxy we'll deal with request targetting our old
+		// internal API (which should have been removed a decade ago already) here instead.
+		if strings.HasPrefix(r.URL.Path, "/api/internal/") {
+			segments := strings.Split(r.URL.Path[14:], "/")
+			if len(segments) == 2 && (segments[0] == "v1.1" || segments[0] == "v1") {
+				switch segments[1] {
+				case "capabilities":
+					handleInternalCapabilitiesResource(w, r)
+					return
+				case "configuration":
+					handleInternalConfigurationResource(w, r)
+					return
+				case "sandboxes":
+					handleInternalSandboxesResource(w, r)
+					return
+				}
+			}
+		}
+
+		// Log errors for requests targetting our REST APIs
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			logger.Error("Error processing API endpoint", zap.String("path", r.URL.Path), zap.Error(err))
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+		} else {
+			http.NotFound(w, r)
 		}
 	}
 
 	// Now that we have initiated a reverse proxy handler for this database, start listening to the port associated to it
 	server.httpServer = &http.Server{
 		Addr:      ":" + strconv.Itoa(server.HTTPPortNumber),
-		Handler:   proxy,
+		Handler:   logRequestResponse(proxy),
 		TLSConfig: &tls.Config{},
 	}
 

@@ -1,22 +1,22 @@
 {
   "admsrv": {
-    "cert-file": "./cert.pem",
+    "service-name": "tm1-v12-admsrv",
     "http-port": 5895,
     "https-port": 5898,
-    "key-file": "./key.pem",
-    "service-name": "tm1-v12-admsrv"
+    "cert-file": "./cert.pem",
+    "key-file": "./key.pem"
   },
   "log": {
     "file": "./tm1-v12-admsrv.log",
-    "level": "info"
+    "level": "debug"
   },
   "servers": {
-    "host-name": "localhost",
+    "host-name": "172.21.16.1",
     "ip-v4-address": null,
     "ip-v6-address": null,
     "port-range": {
-      "max": 9659,
-      "min": 9601
+      "min": 9601,
+      "max": 9659
     },
     "using-ssl": false,
     "cert-file": "./cert.pem",
@@ -28,7 +28,7 @@
     "auth": {
       "basic": {
         "username": "admin",
-        "password": "apple"
+        "password": ""
       }
     }
   }

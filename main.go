@@ -20,6 +20,9 @@ func runServer() {
 	// Initialize servers port map and file watcher
 	initPortMap()
 
+	// TODO: Kick off the PA proxy if we want one
+	startPAReverseProxy()
+
 	// Kick off the reverse proxies for our servers
 	go func() {
 		err := refreshServers()
@@ -39,26 +42,26 @@ func runServer() {
 		// Start the HTTPS server in a separate goroutine
 		go func() {
 			logger.Info("Starting HTTPS server", zap.Int("port", httpsPort))
-			if err := http.ListenAndServeTLS(":"+strconv.Itoa(httpsPort), viper.GetString("admsrv.cert-file"), viper.GetString("admsrv.key-file"), &router); err != nil {
+			if err := http.ListenAndServeTLS(":"+strconv.Itoa(httpsPort), viper.GetString("admsrv.cert-file"), viper.GetString("admsrv.key-file"), logRequestResponse(&router)); err != nil {
 				logger.Fatal("HTTPS server failed to start", zap.Error(err))
 			}
 		}()
 
 		// Start the HTTP server
 		logger.Info("Starting HTTP server", zap.Int("port", httpPort))
-		if err := http.ListenAndServe(":"+strconv.Itoa(httpPort), &router); err != nil {
+		if err := http.ListenAndServe(":"+strconv.Itoa(httpPort), logRequestResponse(&router)); err != nil {
 			logger.Fatal("HTTP server failed to start", zap.Error(err))
 		}
 	} else if httpsPort != 0 {
 		// Start the HTTPS server
 		logger.Info("Starting HTTPS server", zap.Int("port", httpsPort))
-		if err := http.ListenAndServeTLS(":"+strconv.Itoa(httpsPort), viper.GetString("admsrv.cert-file"), viper.GetString("admsrv.key-file"), &router); err != nil {
+		if err := http.ListenAndServeTLS(":"+strconv.Itoa(httpsPort), viper.GetString("admsrv.cert-file"), viper.GetString("admsrv.key-file"), logRequestResponse(&router)); err != nil {
 			logger.Fatal("HTTPS server failed to start", zap.Error(err))
 		}
 	} else if httpPort != 0 {
 		// Start the HTTP server
 		logger.Info("Starting HTTP server", zap.Int("port", httpPort))
-		if err := http.ListenAndServe(":"+strconv.Itoa(httpPort), &router); err != nil {
+		if err := http.ListenAndServe(":"+strconv.Itoa(httpPort), logRequestResponse(&router)); err != nil {
 			logger.Fatal("HTTP server failed to start", zap.Error(err))
 		}
 	} else {
